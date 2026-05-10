@@ -1,30 +1,21 @@
 import { useState, useEffect } from 'react'
 import { useGenLayer } from '../hooks/useGenLayer.js'
+import Avatar from './Avatar.jsx'
+import { shortAddr, nick } from '../utils/format.js'
 
-function shortAddr(addr) {
-  if (!addr) return '???'
-  return addr.slice(0, 6) + '…' + addr.slice(-4)
-}
-
-const MEDALS = ['🥇', '🥈', '🥉']
-
-export default function Leaderboard() {
+export default function Leaderboard({ myAddress, onBack }) {
   const gl = useGenLayer()
-  const [entries,   setEntries]   = useState([])
-  const [loading,   setLoading]   = useState(true)
-  const [lastFetch, setLastFetch] = useState(null)
+  const myAddr = (myAddress || '').toLowerCase()
+  const [entries, setEntries] = useState([])
+  const [loading, setLoading] = useState(true)
 
   async function fetchBoard() {
     setLoading(true)
     try {
       const data = await gl.getLeaderboard()
       setEntries(Array.isArray(data) ? data : [])
-      setLastFetch(new Date())
-    } catch {
-      setEntries([])
-    } finally {
-      setLoading(false)
-    }
+    } catch { setEntries([]) }
+    finally { setLoading(false) }
   }
 
   useEffect(() => {
@@ -33,153 +24,82 @@ export default function Leaderboard() {
     return () => clearInterval(id)
   }, [])
 
+  const total = entries.reduce((s, e) => s + (e.xp ?? 0), 0)
+  const top   = entries[0]?.xp ?? 0
+  const avg   = entries.length ? Math.round(total / entries.length) : 0
+
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      <div className="row-between mb-24">
         <div>
-          <h2 className="section-title">🏆 Global Leaderboard</h2>
-          <p style={{ color: 'var(--muted)', fontSize: '.85rem' }}>
-            Cumulative XP earned across all game sessions on Bradbury Testnet
-          </p>
+          <span className="kicker">/ GLOBAL LADDER · BRADBURY</span>
+          <h1 className="display display-lg mt-12">Hall of speed.</h1>
         </div>
-        <button
-          className="btn btn-ghost btn-sm"
-          onClick={fetchBoard}
-          disabled={loading}
-        >
-          {loading ? '⏳' : '↻ Refresh'}
-        </button>
+        <div className="row gap-8">
+          <button className="btn btn-ghost btn-sm" onClick={fetchBoard} disabled={loading}>
+            {loading ? <span className="spinner" style={{ width: 14, height: 14 }} /> : '↻ REFRESH'}
+          </button>
+          {onBack && <button className="btn btn-ghost btn-sm" onClick={onBack}>← HOME</button>}
+        </div>
       </div>
 
-      {/* Stats bar */}
-      {entries.length > 0 && (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 12,
-            marginBottom: 20,
-          }}
-        >
-          {[
-            ['👥 Players', entries.length],
-            ['⚡ Top XP',  entries[0]?.xp ?? 0],
-            ['📊 Avg XP',  Math.round(entries.reduce((s, e) => s + e.xp, 0) / entries.length)],
-          ].map(([label, val]) => (
-            <div
-              key={label}
-              className="card"
-              style={{ padding: '14px 16px', textAlign: 'center' }}
-            >
-              <div style={{ fontSize: '.78rem', color: 'var(--muted)', marginBottom: 4 }}>{label}</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--accent)' }}>{val}</div>
-            </div>
-          ))}
+      <div className="lb-stat-grid">
+        <div className="lb-stat accent">
+          <div className="label">// PLAYERS</div>
+          <div className="num tabular">{entries.length}</div>
         </div>
-      )}
-
-      {/* Table */}
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        {/* Table header */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '52px 1fr 100px',
-            padding: '10px 18px',
-            borderBottom: '1px solid var(--border)',
-            fontSize: '.78rem',
-            color: 'var(--muted)',
-            textTransform: 'uppercase',
-            letterSpacing: '.05em',
-          }}
-        >
-          <span>#</span>
-          <span>Address</span>
-          <span style={{ textAlign: 'right' }}>Total XP</span>
+        <div className="lb-stat">
+          <div className="label">// TOTAL XP</div>
+          <div className="num tabular">{total.toLocaleString()}</div>
         </div>
+        <div className="lb-stat magenta">
+          <div className="label">// TOP SCORE</div>
+          <div className="num tabular">{top.toLocaleString()}</div>
+        </div>
+        <div className="lb-stat">
+          <div className="label">// AVG XP</div>
+          <div className="num tabular">{avg.toLocaleString()}</div>
+        </div>
+      </div>
 
-        {loading && entries.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 40 }}>
-            <div className="spinner" />
-            <p style={{ color: 'var(--muted)', marginTop: 8 }}>Fetching leaderboard…</p>
+      {loading && entries.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 48 }}><div className="spinner" /></div>
+      ) : entries.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 48 }}>
+          <p className="text-muted">No entries yet — play a game to get on the board.</p>
+        </div>
+      ) : (
+        <div className="results-table">
+          <div className="results-row head">
+            <span>RANK</span><span /><span>PLAYER</span>
+            <span style={{ textAlign: 'right' }}>XP</span>
+            <span style={{ textAlign: 'right' }}>STATUS</span>
           </div>
-        ) : entries.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 40 }}>
-            <div style={{ fontSize: '2rem', marginBottom: 8 }}>📭</div>
-            <p style={{ color: 'var(--muted)' }}>No entries yet — play a game to get on the board!</p>
-          </div>
-        ) : (
-          entries.map((entry, i) => (
-            <div
-              key={entry.address}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '52px 1fr 100px',
-                padding: '12px 18px',
-                alignItems: 'center',
-                borderBottom: i < entries.length - 1 ? '1px solid var(--border)' : 'none',
-                background: i < 3 ? `${['#ffd70008', '#c0c0c008', '#cd7f3208'][i]}` : 'transparent',
-                transition: 'background .15s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface2)' }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = i < 3
-                  ? ['#ffd70008', '#c0c0c008', '#cd7f3208'][i]
-                  : 'transparent'
-              }}
-            >
-              {/* Rank */}
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                {i < 3 ? (
-                  <span style={{ fontSize: '1.2rem' }}>{MEDALS[i]}</span>
-                ) : (
-                  <span
-                    style={{
-                      width: 28, height: 28,
-                      borderRadius: '50%',
-                      background: 'var(--surface2)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '.8rem', fontWeight: 700, color: 'var(--muted)',
-                    }}
-                  >
-                    {i + 1}
-                  </span>
-                )}
+          {entries.map((entry, i) => {
+            const addr = entry.address ?? entry.addr ?? ''
+            const isMe = addr.toLowerCase() === myAddr
+            return (
+              <div key={addr} className={`results-row r${i+1}`}
+                style={{ background: isMe ? 'color-mix(in oklch, var(--accent) 5%, transparent)' : 'transparent' }}>
+                <span className="rank-num">#{i+1}</span>
+                <Avatar addr={addr} name={nick(addr)} size={32} />
+                <div>
+                  <div className="name">{nick(addr)}{isMe && <span className="text-accent" style={{ marginLeft: 6 }}>· YOU</span>}</div>
+                  <div className="addr">{shortAddr(addr)}</div>
+                </div>
+                <span className="xp">{(entry.xp ?? 0).toLocaleString()}</span>
+                <span className="mono text-muted" style={{ textAlign: 'right', fontSize: '0.74rem' }}>
+                  {i === 0 ? 'CHAMPION' : i < 3 ? 'PODIUM' : 'ACTIVE'}
+                </span>
               </div>
-
-              {/* Address */}
-              <span
-                style={{
-                  fontFamily: 'monospace',
-                  fontSize: '.85rem',
-                  color: i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : 'var(--text)',
-                }}
-              >
-                {entry.address}
-              </span>
-
-              {/* XP */}
-              <span
-                style={{
-                  textAlign: 'right',
-                  fontWeight: 700,
-                  fontSize: i < 3 ? '1.1rem' : '.95rem',
-                  color: i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : 'var(--accent)',
-                }}
-              >
-                {entry.xp.toLocaleString()}
-              </span>
-            </div>
-          ))
-        )}
-      </div>
-
-      {lastFetch && (
-        <p style={{ textAlign: 'center', fontSize: '.75rem', color: 'var(--muted)', marginTop: 12 }}>
-          Last updated: {lastFetch.toLocaleTimeString()} · auto-refreshes every 30s
-        </p>
+            )
+          })}
+        </div>
       )}
+
+      <p className="center text-muted mt-16" style={{ fontSize: '0.78rem' }}>
+        // Auto-syncs from on-chain state every 30s
+      </p>
     </div>
   )
 }
